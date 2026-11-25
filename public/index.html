@@ -149,6 +149,13 @@ textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:
 textarea.notebody{width:100%;min-height:46vh;font:inherit;font-size:16px;line-height:1.5;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:inherit;resize:vertical}
 @media(max-width:600px){.notes{grid-template-columns:minmax(0,1fr)}.bnav{grid-template-columns:repeat(6,minmax(0,1fr))!important}.bnav button{font-size:10.5px!important}}
 /* phone declutter */
+.ulist{background:var(--panel);border-radius:16px;padding:4px 14px}
+.lrow{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);border-left:4px solid var(--c);padding:9px 0 9px 12px;margin:2px 0;color:inherit;cursor:pointer;font:inherit}
+.ulist .lrow:first-child{border-top:0}
+.lrow b{display:block;font-size:16px;line-height:1.3}
+.lrow small{display:block;font-size:13px;color:var(--soft);line-height:1.4}
+.lrow small.cw{color:var(--hold);font-weight:700}
+.lrow small .owe{font-weight:700}
 .kpi b small.kn{display:block;font-size:14px;font-weight:400;color:var(--soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .legendbox summary{cursor:pointer;font-size:13.5px;color:var(--soft);font-weight:600;padding:8px 2px;list-style:none}
 .legendbox summary::-webkit-details-marker{display:none}
@@ -344,6 +351,12 @@ const conTag=b=>needsContract(b)?(b.contractStatus==='signed'?`<span class="tag"
 const safeUrl=u=>/^https:\/\//i.test(String(u||'').trim())?String(u).trim():'';
 let assets=null;
 const isPhone=()=>{try{return window.matchMedia('(max-width:600px)').matches}catch(e){return false}};
+function bRow(b,pay){const c=calc(b),k=look(b),pl=payLook(b),blk=b.status==='blocked',col=pay?pl.c:k.c;
+  const line=[`${fmtD(b.checkIn)} → ${fmtD(b.checkOut)}`,blk?'':`${c.n} night${c.n==1?'':'s'}`,c.hallDays&&!blk?'hall '+hallTxt(b):'',pay?'':({'Paid in full':'paid','Payment pending · part paid':'part paid','Payment pending':'unpaid'}[k.l]||k.l)].filter(Boolean).join(' · ');
+  const con=needsContract(b)&&b.contractStatus!=='signed'?`<small class="cw">Contract ${b.contractStatus==='sent'?'sent, not signed yet':'not sent'}</small>`:'';
+  const money=pay&&!blk?`<small>${c.balance>0.005?`<span class="owe">${money_(c.balance)} due</span> · `:''}Paid ${money_(c.paid)} of ${money_(c.due)}${pay&&b.msgLog&&b.msgLog.reminder&&c.balance>0.005?` · reminder sent ${esc(fmtD(String(b.msgLog.reminder.at).slice(0,10)))}`:''}</small>`:'';
+  return`<button class="lrow" data-id="${esc(b.id)}"${pay?' data-pay="1"':''} style="--c:${col}"><b>${esc(b.guest||(blk?'Blocked':'Guest'))}</b><small>${esc(line)}</small>${money}${con}</button>`}
+const money_=n=>money(n);
 function bCard(b,pay){const c=calc(b),k=look(b),pl=payLook(b),blk=b.status==='blocked';
   const pct=c.due?Math.min(100,Math.round(c.paid/c.due*100)):0,col=pay?pl.c:k.c;
   const info=blk?'':[+b.guests?b.guests+' overnight':'',c.hallDays?'Hall '+hallTxt(b)+(+b.hallGuests?' · '+b.hallGuests+' guests':''):''].filter(Boolean).join(' · ');
@@ -501,7 +514,7 @@ function bookings(){
    <div class="pfil"><select class="sel" id="when" aria-label="When"><option value="upcoming">Upcoming</option><option value="past">Past</option><option value="all">All dates</option></select>
    <select class="sel" id="statusF" aria-label="Status"><option value="active">All but cancelled</option><option value="all">Every status</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}">${v.l}</option>`).join('')}</select></div></div>
    <div class="sumline">${rows.length} booking${rows.length==1?'':'s'}</div>
-   ${rows.length?`<div class="cards">${rows.map(b=>bCard(b)).join('')}</div>`:`<div class="empty">No bookings here. ${S.bookings.length?'Try another filter.':'Tap + to add your first booking.'}</div>`}
+   ${rows.length?`<div class="ulist">${rows.map(b=>bRow(b)).join('')}</div>`:`<div class="empty">No bookings here. ${S.bookings.length?'Try another filter.':'Tap + to add your first booking.'}</div>`}
    <div class="pbtns"><button class="btn small" id="csv">Download CSV</button><button class="btn small c" style="background:#e0565b" id="imp">Import from Airbnb</button></div><div id="csvOut"></div>`;
   return`${propChips()}
   <div class="bar"><input class="search" id="q" type="search" placeholder="Search guest, phone, email, notes" value="${esc(q)}">
@@ -545,10 +558,10 @@ function payments(){
   <div class="kpis">${revCard}<div class="kpi" style="border-left:5px solid var(--owe)"><span>Still to collect</span><b class="${out>0?'owe':''}">${money(out)}</b><span>${owing.length} booking${owing.length==1?'':'s'}</span></div>
   <div class="kpi" style="border-left:5px solid var(--paid)"><span>Collected in ${esc(cur.toLocaleDateString('en-US',{month:'long'}))}</span><b>${money(got)}</b></div></div>
   <h3 class="h"><span class="dot" style="background:var(--owe)"></span>Needs payment</h3>
-  ${owing.length?`<div class="cards">${owing.map(b=>bCard(b,1)).join('')}</div>`:'<div class="empty">Everyone is paid up.</div>'}
+  ${owing.length?`<div class="ulist">${owing.map(b=>bRow(b,1)).join('')}</div>`:'<div class="empty">Everyone is paid up.</div>'}
   <h3 class="h"><span class="dot" style="background:var(--paid)"></span>Recent payments</h3>
   ${log.length?`<div class="plist">${log.slice(0,25).map(p=>`<div class="vr" data-id="${esc(p.b.id)}"><span>${esc(fmtD(p.date))} · ${esc(p.b.guest||'Guest')}<br><small>${esc(p.method||'')}</small></span><div>${money(+p.amount||0)}</div></div>`).join('')}</div>`:'<div class="empty">No payments recorded yet.</div>'}
-  ${paidFull.length?`<details><summary>Paid in full (${paidFull.length})</summary><div class="cards">${paidFull.map(b=>bCard(b,1)).join('')}</div></details>`:''}`;
+  ${paidFull.length?`<details><summary>Paid in full (${paidFull.length})</summary><div class="ulist">${paidFull.map(b=>bRow(b,1)).join('')}</div></details>`:''}`;
   const head='<thead><tr><th>Guest</th><th>Stay</th><th class="num">To collect</th><th class="num">Paid</th><th class="num">Balance</th><th>Payment</th></tr></thead>';
   return`${propChips()}
   <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${revCard}<div class="kpi" style="border-left:5px solid var(--paid)"><span>Collected in ${esc(cur.toLocaleDateString('en-US',{month:'long'}))}</span><b>${money(got)}</b></div>
