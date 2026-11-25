@@ -17,7 +17,7 @@ if (!DATABASE_URL) { console.error('DATABASE_URL is not set. Add a Postgres data
 
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.createHash('sha256').update('sahvana:' + APP_PASSWORD).digest('hex');
 const PW_FINGERPRINT = crypto.createHash('sha256').update(APP_PASSWORD).digest('hex').slice(0, 16); // changing the password signs everyone out
-const COLLECTIONS = new Set(['bookings', 'properties', 'tours']);
+const COLLECTIONS = new Set(['bookings', 'properties', 'tours', 'notes']);
 const ID_RE = /^[A-Za-z0-9_.:@+~-]{1,120}$/;
 const SESSION_DAYS = 180;
 const ICAL_EVERY_MIN = Number(process.env.ICAL_SYNC_MINUTES || 60);
@@ -136,7 +136,7 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((e) => { console.error(e);
 /* ---------- data API ---------- */
 app.get('/api/data', wrap(async (_req, res) => {
   const { rows } = await pool.query('SELECT collection, id, data FROM docs');
-  const out = { bookings: [], properties: [], tours: [] };
+  const out = { bookings: [], properties: [], tours: [], notes: [] };
   for (const r of rows) if (out[r.collection]) out[r.collection].push({ ...r.data, id: r.id });
   res.json({ ...out, ical: icalStatus, serverTime: new Date().toISOString() });
 }));

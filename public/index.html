@@ -139,6 +139,15 @@ details summary{cursor:pointer;font-weight:700;padding:10px 0}
 .msgbtns a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:12px;color:#fff;font-weight:700;text-decoration:none;font-size:16px}
 .msgbtns a svg{width:20px;height:20px;fill:currentColor}
 textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:inherit;resize:vertical}
+/* notes */
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.note{display:flex;flex-direction:column;gap:4px;text-align:left;background:light-dark(#fff7dc,#33290f);border:0;border-top:5px solid #c99a1a;border-radius:14px;padding:12px 14px;cursor:pointer;color:inherit;min-height:120px}
+.note b{font-size:16.5px;line-height:1.25}
+.note p{margin:0;font-size:14.5px;color:var(--soft);white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.note small{margin-top:auto;color:var(--soft);font-size:12.5px}
+.pin{align-self:flex-start;font-size:11.5px;font-weight:700;background:#c99a1a;color:#fff;border-radius:999px;padding:1px 8px}
+textarea.notebody{width:100%;min-height:46vh;font:inherit;font-size:16px;line-height:1.5;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:inherit;resize:vertical}
+@media(max-width:600px){.notes{grid-template-columns:minmax(0,1fr)}.bnav{grid-template-columns:repeat(6,minmax(0,1fr))!important}.bnav button{font-size:10.5px!important}}
 /* phone app shell */
 .bnav,.fab{display:none}
 .cards{display:grid;gap:10px}
@@ -217,6 +226,7 @@ textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:
     <a href="#bookings" data-v="bookings">Bookings</a>
     <a href="#tours" data-v="tours">Tours</a>
     <a href="#payments" data-v="payments">Payments</a>
+    <a href="#notes" data-v="notes">Notes</a>
     <a href="#guests" data-v="guests">Guests</a>
     <a href="#properties" data-v="properties">Properties</a>
   </nav>
@@ -230,6 +240,7 @@ textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:
   <button data-go="bookings"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg><span>Bookings</span></button>
   <button data-go="payments"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M2.5 10.5h19M6.5 15h4"/></svg><span>Payments</span></button>
   <button data-go="tours"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg><span>Tours</span></button>
+  <button data-go="notes"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M9 12h7M9 15.5h7M9 8.5h3"/></svg><span>Notes</span></button>
   <button data-go="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg><span>More</span></button>
 </nav>
 <button class="fab" id="fab" aria-label="Add booking, tour or block">+</button>
@@ -260,7 +271,7 @@ const fmtTs=t=>{if(!t)return'';const[h,m]=t.split(':').map(Number);return((h%12)
 const TODAY=iso(new Date());
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
-const S={bookings:[],properties:[],tours:[],loaded:{}};
+const S={bookings:[],properties:[],tours:[],notes:[],loaded:{}};
 let db=null,mode='loading',view='calendar',cur=new Date(),filterProp='all',q='',statusF='active',when='upcoming',tourWhen='upcoming';
 cur.setDate(1);
 
@@ -314,7 +325,7 @@ function bCard(b,pay){const c=calc(b),k=look(b),pl=payLook(b),blk=b.status==='bl
 const tag=(c,l)=>`<span class="tag" style="background:${c}">${esc(l)}</span>`;
 
 /* ---------- storage (server) ---------- */
-const KINDS=['bookings','properties','tours'];
+const KINDS=['bookings','properties','tours','notes'];
 async function api(method,url,body,headers){
   const r=await fetch(url,{method,headers:body instanceof Blob?{'Content-Type':body.type||'application/octet-stream',...(headers||{})}:body!==undefined?{'Content-Type':'application/json'}:{},body:body instanceof Blob?body:body!==undefined?JSON.stringify(body):undefined,credentials:'same-origin'});
   if(r.status===401){location.href='/login';throw new Error('signed_out')}
@@ -575,7 +586,7 @@ function openSheet(kind){
   $('#modal').innerHTML=`<div class="vh"><h2>${kind==='more'?'More':'Add'}</h2><button class="x" id="cancel" aria-label="Close">✕</button></div><div class="sheet">${kind==='more'
     ?B('guests','#1f8a83','Guests','Everyone who has stayed')+B('properties','var(--block)','Properties &amp; prices','Rates, hall price, deposit, limits')+B('import','#e0565b','Import from Airbnb','Bring in Airbnb reservations')
     +B('backup','#1f8a83','Backup &amp; log out','Download or restore a backup')
-    :B('book','var(--book)','New booking','Guest, dates, hall, price')+B('tour','var(--tour)','Schedule tour','Date, time, visitor')+B('block','var(--block)','Block dates','Grey out days on the calendar')+B('pay','var(--paid)','Record payment','See who still owes')}</div>`;
+    :B('book','var(--book)','New booking','Guest, dates, hall, price')+B('note','#b8860b','New note','To-dos, contacts, ideas')+B('tour','var(--tour)','Schedule tour','Date, time, visitor')+B('block','var(--block)','Block dates','Grey out days on the calendar')+B('pay','var(--paid)','Record payment','See who still owes')}</div>`;
   $('#ov').classList.add('on');
 }
 function overlaps(d){return S.bookings.filter(b=>b.id!==d.id&&live(b)&&b.propertyId===d.propertyId&&b.checkIn<d.checkOut&&b.checkOut>d.checkIn)}
@@ -877,18 +888,49 @@ async function runImport(){
   toast('Imported '+ok+' booking'+(ok==1?'':'s')+' from Airbnb');
 }
 
+/* ---------- notes ---------- */
+let nq='',ndraft=null;
+const noteTitle=n=>String(n.title||'').trim()||String(n.text||'').trim().split('\n')[0].slice(0,60)||'Untitled note';
+function noteWhen(n){if(!n.updated)return'';const d=new Date(n.updated);return(iso(d)===TODAY?'Today ':fmtD(iso(d))+' · ')+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+function notes(){
+  const t=nq.trim().toLowerCase();
+  const list=S.notes.filter(n=>!t||(String(n.title||'')+' '+String(n.text||'')).toLowerCase().includes(t))
+    .sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||String(b.updated||'').localeCompare(String(a.updated||'')));
+  return`<div class="bar"><input class="search" id="nq" type="search" placeholder="Search notes" value="${esc(nq)}"><button class="btn c" style="background:#b8860b" id="noteAdd">+ New note</button></div>
+  ${list.length?`<div class="notes">${list.map(n=>{const ti=noteTitle(n);const body=String(n.text||'').trim();const rest=String(n.title||'').trim()?body:body.split('\n').slice(1).join('\n').trim();
+    return`<button class="note" data-note="${esc(n.id)}">${n.pinned?'<span class="pin">Pinned</span>':''}<b>${esc(ti)}</b>${rest?`<p>${esc(rest)}</p>`:''}<small>${esc(noteWhen(n))}</small></button>`}).join('')}</div>`
+  :`<div class="empty">${S.notes.length?'No notes match your search.':'No notes yet. Tap “+ New note” for to-dos, vendor contacts, maintenance or ideas.'}</div>`}`;
+}
+function openNote(id){const n=id?S.notes.find(x=>x.id===id):null;
+  draft=null;tdraft=null;pdraft=null;imp=null;delArm=false;
+  ndraft=n?{...n}:{id:uid(),title:'',text:'',pinned:false,created:new Date().toISOString()};ndraft._orig=JSON.stringify([ndraft.title,ndraft.text,ndraft.pinned]);
+  drawNote();$('#ov').classList.add('on');$('#ov').scrollTop=0;if(!n)setTimeout(()=>{const ae=document.activeElement;if(!ae||(ae.id!=='n_text'&&ae.id!=='n_title'))$('#n_title')?.focus()},60)}
+function drawNote(){const n=ndraft,isNew=!S.notes.some(x=>x.id===n.id);
+  $('#modal').style.setProperty('--mc','#c99a1a');
+  $('#modal').innerHTML=`<div class="vh"><h2>${isNew?'New note':'Note'}</h2><button class="x" id="ndone2" aria-label="Save and close">✕</button></div>
+  <label class="field" style="margin-top:10px">Title<input id="n_title" value="${esc(n.title)}" placeholder="e.g. Vendor contacts, To-do before Dec 18 wedding"></label>
+  <label class="field" style="margin-top:12px">Note<textarea class="notebody" id="n_text" placeholder="Write anything…">${esc(n.text)}</textarea></label>
+  <label class="tgl" style="margin-top:6px"><input type="checkbox" id="n_pin" ${n.pinned?'checked':''} style="accent-color:#c99a1a"> Pin to the top</label>
+  ${isNew?'':`<p class="note" style="margin:4px 0 0">Last edited ${esc(noteWhen(n))}</p>`}
+  <div class="foot"><div>${isNew?'':`<button class="btn danger" id="ndel">${delArm?'Tap again to delete':'Delete'}</button>`}<button class="btn pri" id="ndone">Done</button></div></div>`}
+async function saveNote(){if(!ndraft||!$('#n_text'))return;const n=ndraft;const changed=JSON.stringify([n.title,n.text,n.pinned])!==n._orig;
+  const empty=!String(n.title||'').trim()&&!String(n.text||'').trim();ndraft=null;closeModal();
+  if(!changed||empty)return;const{_orig,...clean}=n;clean.updated=new Date().toISOString();
+  try{await save('notes',clean);toast('Note saved')}catch(e){}}
+
 /* ---------- render ---------- */
-const VIEWS={calendar,bookings,tours,payments,guests,properties};
+const VIEWS={calendar,bookings,tours,payments,notes,guests,properties};
 function render(){
   banner();kpis();
   for(const a of document.querySelectorAll('#tabs a'))a.classList.toggle('on',a.dataset.v===view);
   for(const b of document.querySelectorAll('#bnav button'))b.classList.toggle('on',b.dataset.go===view||(b.dataset.go==='more'&&(view==='guests'||view==='properties')));
   const v=$('#view');
   if(mode==='loading'||(mode==='cloud'&&!S.loaded.bookings&&!S.bookings.length)){v.innerHTML='<div class="empty">Loading your bookings…</div>';return}
-  const focusQ=document.activeElement?.id==='q';
+  const focusQ=document.activeElement?.id==='q',focusN=document.activeElement?.id==='nq';
   v.innerHTML=VIEWS[view]();
   if(view==='bookings'){$('#when').value=when;$('#statusF').value=statusF;if(focusQ){const i=$('#q');i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
   if(view==='tours')$('#tourWhen').value=tourWhen;
+  if(view==='notes'&&focusN){const i=$('#nq');i.focus();i.setSelectionRange(i.value.length,i.value.length)}
 }
 function route(){const h=location.hash.slice(1);view=VIEWS[h]?h:'calendar';render()}
 
@@ -911,6 +953,8 @@ $('#view').addEventListener('click',e=>{
   if(t.dataset.id){openBooking(t.dataset.id);if(t.dataset.pay)setTimeout(()=>$('#paySec')?.scrollIntoView({block:'start'}),40);return}
   if(t.dataset.day){if(!needProp())openDay(t.dataset.day);return}
   if(t.id==='imp'){openImport();return}
+  if(t.id==='noteAdd'){openNote(null);return}
+  if(t.dataset.note){openNote(t.dataset.note);return}
   if(t.id==='bkDown'){location.href='/api/backup';toast('Downloading backup…');return}
   if(t.id==='tourAdd'){if(!needProp())openTour(null);return}
   if(t.id==='addProp'){openProp(null);return}
@@ -921,7 +965,7 @@ $('#view').addEventListener('click',e=>{
     const csv=[head,...filtered().map(b=>{const c=calc(b);return[b.guest,b.phone,b.email,b.guests,pName(b.propertyId),b.checkIn,b.checkOut,c.n,b.hallOn?(b.hallDays||[]).sort().join(' '):'',b.hallOn?(+b.hallGuests||''):'',b.status,needsContract(b)?(CST[b.contractStatus||'none']||CST.none).l:'',b.source,c.total.toFixed(2),c.dep.toFixed(2),c.paid.toFixed(2),c.balance.toFixed(2),b.notes]})].map(r=>r.map(cell).join(',')).join('\n');
     download(`sahvana-bookings-${TODAY}.csv`,csv,'text/csv');toast('CSV downloaded')}
 });
-$('#view').addEventListener('input',e=>{if(e.target.id==='q'){q=e.target.value;render()}});
+$('#view').addEventListener('input',e=>{if(e.target.id==='q'){q=e.target.value;render()}if(e.target.id==='nq'){nq=e.target.value;render()}});
 $('#view').addEventListener('change',async e=>{
   if(e.target.id==='bkUp'){const f=e.target.files&&e.target.files[0];if(!f)return;const msg=$('#bkMsg');
     try{const txt=await f.text();let b;try{b=JSON.parse(txt)}catch(x){throw new Error('That file is not a Sahvana Ranch backup')}
@@ -935,9 +979,10 @@ $('#view').addEventListener('change',async e=>{
 });
 $('#view').addEventListener('change',e=>{const id=e.target.id;if(id==='when')when=e.target.value;else if(id==='statusF')statusF=e.target.value;else if(id==='tourWhen')tourWhen=e.target.value;else return;render()});
 
-$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeModal()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('on'))closeModal()});
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov'){if(ndraft&&$('#n_text'))saveNote();else closeModal()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#ov').classList.contains('on')){if(ndraft&&$('#n_text'))saveNote();else closeModal()}});
 $('#modal').addEventListener('input',e=>{
+  if(ndraft&&$('#n_text')){if(e.target.id==='n_title')ndraft.title=e.target.value;if(e.target.id==='n_text')ndraft.text=e.target.value}
   const id=e.target.id||'';
   if(draft){
     if(id.startsWith('f_')){draft[id.slice(2)]=e.target.value;if(id==='f_phone'||id==='f_guest')delete draft._btext;
@@ -954,6 +999,7 @@ $('#modal').addEventListener('input',e=>{
   if(pdraft&&e.target.dataset&&e.target.dataset.ti!=null){const t=pdraft.templates[+e.target.dataset.ti];if(t)t[e.target.dataset.tk]=e.target.value}
 });
 $('#modal').addEventListener('change',e=>{
+  if(ndraft&&e.target.id==='n_pin'){ndraft.pinned=e.target.checked;return}
   if(imp&&e.target.id==='impFile'){const f=e.target.files&&e.target.files[0];if(f){const r=new FileReader();r.onload=()=>loadImport(String(r.result||''));r.readAsText(f)}return}
   if(imp&&e.target.id==='impProp'){imp.propertyId=e.target.value;return}
   if(draft&&e.target.id==='depRef'){draft.depositRefunded=e.target.checked;return}
@@ -975,12 +1021,17 @@ $('#modal').addEventListener('click',e=>{
 });
 $('#modal').addEventListener('click',async e=>{
   const t=e.target.closest('button');if(!t)return;
+  if(ndraft&&$('#n_text')){
+    if(t.id==='ndone'||t.id==='ndone2'){saveNote();return}
+    if(t.id==='ndel'){if(!delArm){delArm=true;t.textContent='Tap again to delete';return}const id=ndraft.id;ndraft=null;closeModal();await remove('notes',id);toast('Note deleted');return}
+  }
   if(t.id==='cancel'){closeModal();return}
   if(t.dataset.sheet){const a=t.dataset.sheet;
     if(a==='book'){if(!needProp())openBooking(null);else closeModal();return}
     if(a==='tour'){if(!needProp())openTour(null);else closeModal();return}
     if(a==='block'){if(!needProp())openBooking(null,null,'blocked');else closeModal();return}
     if(a==='import'){closeModal();openImport();return}
+    if(a==='note'){openNote(null);return}
     closeModal();location.hash=a==='pay'?'payments':a==='backup'?'properties':a;window.scrollTo(0,0);return}
   if(draft&&t.id==='vEdit'){drawForm();$('#ov').scrollTop=0;return}
   if(draft&&t.id==='vPay'){draft.payments=draft.payments||[];draft.payments.push({date:TODAY,amount:'',method:'Zelle'});drawForm();setTimeout(()=>{$('#paySec')?.scrollIntoView({block:'start'});$('#pays .pay:last-child input[data-k=amount]')?.focus()},60);return}
