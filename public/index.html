@@ -141,10 +141,10 @@ details summary{cursor:pointer;font-weight:700;padding:10px 0}
 textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:inherit;resize:vertical}
 /* notes */
 .notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-.note{display:flex;flex-direction:column;gap:4px;text-align:left;background:light-dark(#fff7dc,#33290f);border:0;border-top:5px solid #c99a1a;border-radius:14px;padding:12px 14px;cursor:pointer;color:inherit;min-height:120px}
-.note b{font-size:16.5px;line-height:1.25}
-.note p{margin:0;font-size:14.5px;color:var(--soft);white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
-.note small{margin-top:auto;color:var(--soft);font-size:12.5px}
+.ncard{display:flex;flex-direction:column;gap:4px;text-align:left;background:light-dark(#fff7dc,#33290f);border:0;border-top:5px solid #c99a1a;border-radius:14px;padding:12px 14px;cursor:pointer;color:inherit;min-height:120px}
+.ncard b{font-size:16.5px;line-height:1.25}
+.ncard p{margin:0;font-size:14.5px;color:var(--soft);white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.ncard small{margin-top:auto;color:var(--soft);font-size:12.5px}
 .pin{align-self:flex-start;font-size:11.5px;font-weight:700;background:#c99a1a;color:#fff;border-radius:999px;padding:1px 8px}
 textarea.notebody{width:100%;min-height:46vh;font:inherit;font-size:16px;line-height:1.5;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:inherit;resize:vertical}
 @media(max-width:600px){.notes{grid-template-columns:minmax(0,1fr)}.bnav{grid-template-columns:repeat(6,minmax(0,1fr))!important}.bnav button{font-size:10.5px!important}}
@@ -898,7 +898,7 @@ function notes(){
     .sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||String(b.updated||'').localeCompare(String(a.updated||'')));
   return`<div class="bar"><input class="search" id="nq" type="search" placeholder="Search notes" value="${esc(nq)}"><button class="btn c" style="background:#b8860b" id="noteAdd">+ New note</button></div>
   ${list.length?`<div class="notes">${list.map(n=>{const ti=noteTitle(n);const body=String(n.text||'').trim();const rest=String(n.title||'').trim()?body:body.split('\n').slice(1).join('\n').trim();
-    return`<button class="note" data-note="${esc(n.id)}">${n.pinned?'<span class="pin">Pinned</span>':''}<b>${esc(ti)}</b>${rest?`<p>${esc(rest)}</p>`:''}<small>${esc(noteWhen(n))}</small></button>`}).join('')}</div>`
+    return`<button class="ncard" data-note="${esc(n.id)}">${n.pinned?'<span class="pin">Pinned</span>':''}<b>${esc(ti)}</b>${rest?`<p>${esc(rest)}</p>`:''}<small>${esc(noteWhen(n))}</small></button>`}).join('')}</div>`
   :`<div class="empty">${S.notes.length?'No notes match your search.':'No notes yet. Tap “+ New note” for to-dos, vendor contacts, maintenance or ideas.'}</div>`}`;
 }
 function openNote(id){const n=id?S.notes.find(x=>x.id===id):null;
