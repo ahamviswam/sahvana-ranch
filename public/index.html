@@ -53,7 +53,7 @@ h1{font-size:clamp(28px,4vw,40px);line-height:1.05;margin:0;font-weight:800;lett
 .banner{background:var(--holdT);padding:10px 14px;border-radius:12px;font-size:14px;margin-top:12px}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
 .kpi{background:var(--panel);border-radius:16px;padding:12px 16px}
-.kpi b{display:block;font-size:clamp(20px,2.6vw,28px);line-height:1.15;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi b{display:block;font-size:clamp(20px,2.6vw,28px);line-height:1.15;font-weight:800;overflow:hidden}
 .kpi span{font-size:14px;color:var(--soft)}
 nav.tabs{display:flex;gap:4px;overflow-x:auto;margin-top:18px;border-bottom:1px solid var(--line)}
 nav.tabs a{flex:none;padding:12px 14px;text-decoration:none;color:var(--soft);font-weight:600;border-bottom:3px solid transparent}
@@ -393,7 +393,7 @@ function kpis(){
   $('#kpis').innerHTML=
     card('var(--paid)','Next check-in',nextIn?esc(rel(nextIn.checkIn)):'—',nextIn?esc(nextIn.guest||'Guest'):'Nothing upcoming')+
     card('var(--book)','Next check-out',nextOut?esc(rel(nextOut.checkOut)):'—',nextOut?esc(nextOut.guest||'Guest'):'Nothing upcoming')+
-    card('var(--tour)','Next tour',tours[0]?esc(rel(tours[0].date)+' '+fmtTs(tours[0].time)):'—',tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled')+
+    card('var(--tour)','Next tour',tours[0]?`<i style="font-style:normal;white-space:nowrap">${esc(rel(tours[0].date))}</i> <i style="font-style:normal;white-space:nowrap">${esc(fmtT(tours[0].time))}</i>`:'—',tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled')+
     card('var(--hall)','Next event in the hall',hall?esc(rel(hall.d)):'—',hall?esc((hall.b.guest||'Guest')+(hall.b.hallEvent?' · '+hall.b.hallEvent:'')):'No hall bookings');
 }
 function propChips(){
