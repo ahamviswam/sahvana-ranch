@@ -372,24 +372,29 @@ function banner(){
     error:'Your bookings could not be loaded right now. Check your connection and reload.'}[mode];
   $('#banner').innerHTML=m?`<div class="banner">${esc(m)}</div>`:'';
 }
-function kpis(){
+function monthMoney(){
   const y=cur.getFullYear(),m=cur.getMonth();
   const mStart=iso(new Date(y,m,1)),mEnd=iso(new Date(y,m+1,1));
-  const bs=S.bookings.filter(inFilter);
   let rev=0,nights=0;
-  for(const b of bs){if(!counts(b))continue;const c=calc(b),n=c.n||1;
+  for(const b of S.bookings.filter(inFilter)){if(!counts(b))continue;const c=calc(b),n=c.n||1;
     const a=b.checkIn>mStart?b.checkIn:mStart,z=b.checkOut<mEnd?b.checkOut:mEnd;const k=nightsBetween(a,z);
     if(k>0){nights+=k;rev+=c.total*k/n}}
-  const due=bs.filter(counts).reduce((s,b)=>s+Math.max(0,calc(b).balance),0);
-  const nDue=bs.filter(b=>counts(b)&&calc(b).balance>0.005).length;
-  const next=bs.filter(b=>counts(b)&&b.checkIn>=TODAY).sort((a,b)=>a.checkIn.localeCompare(b.checkIn))[0];
+  return{rev,nights,month:cur.toLocaleDateString('en-US',{month:'long'})};
+}
+/* top strip: day-to-day info only — money lives in the Payments tab */
+function kpis(){
+  const bs=S.bookings.filter(b=>inFilter(b)&&counts(b));
+  const nextIn=bs.filter(b=>b.checkIn>=TODAY).sort((a,b)=>a.checkIn.localeCompare(b.checkIn))[0];
+  const nextOut=bs.filter(b=>b.checkOut>=TODAY).sort((a,b)=>a.checkOut.localeCompare(b.checkOut))[0];
   const tours=S.tours.filter(t=>t.status==='scheduled'&&t.date>=TODAY&&(filterProp==='all'||t.propertyId===filterProp)).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
-  const mn=cur.toLocaleDateString('en-US',{month:'long'});
-  $('#kpis').innerHTML=`
-  <div class="kpi" style="border-left:5px solid var(--book)"><span>Revenue · ${esc(mn)}</span><b>${money(rev)}</b><span>${nights} night${nights==1?'':'s'} booked</span></div>
-  <div class="kpi" style="border-left:5px solid var(--owe)"><span>Balance still owed</span><b class="${due>0?'owe':''}">${money(due)}</b><span>${nDue} booking${nDue==1?'':'s'} with a balance</span></div>
-  <div class="kpi" style="border-left:5px solid var(--tour)"><span>Next tour</span><b>${tours[0]?esc(fmtD(tours[0].date)+' '+fmtTs(tours[0].time)):'—'}</b><span>${tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled'}</span></div>
-  <div class="kpi" style="border-left:5px solid var(--paid)"><span>Next check-in</span><b>${next?esc(fmtD(next.checkIn)):'—'}</b><span>${next?esc(next.guest||'Guest'):'Nothing upcoming'}</span></div>`;
+  const hall=bs.flatMap(b=>b.hallOn?(b.hallDays||[]).filter(d=>d>=TODAY).map(d=>({d,b})):[]).sort((x,y)=>x.d.localeCompare(y.d))[0];
+  const rel=d=>d===TODAY?'Today':d===addDays(TODAY,1)?'Tomorrow':fmtD(d);
+  const card=(col,label,big,small,attr)=>`<div class="kpi" style="border-left:5px solid ${col}"${attr||''}><span>${label}</span><b>${big}</b><span>${small}</span></div>`;
+  $('#kpis').innerHTML=
+    card('var(--paid)','Next check-in',nextIn?esc(rel(nextIn.checkIn)):'—',nextIn?esc(nextIn.guest||'Guest'):'Nothing upcoming')+
+    card('var(--book)','Next check-out',nextOut?esc(rel(nextOut.checkOut)):'—',nextOut?esc(nextOut.guest||'Guest'):'Nothing upcoming')+
+    card('var(--tour)','Next tour',tours[0]?esc(rel(tours[0].date)+' '+fmtTs(tours[0].time)):'—',tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled')+
+    card('var(--hall)','Next event in the hall',hall?esc(rel(hall.d)):'—',hall?esc((hall.b.guest||'Guest')+(hall.b.hallEvent?' · '+hall.b.hallEvent:'')):'No hall bookings');
 }
 function propChips(){
   if(S.properties.length<2)return'';
@@ -502,8 +507,9 @@ function payments(){
   const out=owing.reduce((s,b)=>s+calc(b).balance,0);
   const row=b=>{const c=calc(b),pl=payLook(b),pct=c.due?Math.min(100,Math.round(c.paid/c.due*100)):0;
     return`<tr data-id="${esc(b.id)}" data-pay="1" style="--c:${pl.c}"><td><b>${esc(b.guest||'Guest')}</b><br><span class="note">${esc(pName(b.propertyId))}</span></td><td style="white-space:nowrap">${esc(fmtD(b.checkIn))} → ${esc(fmtD(b.checkOut))}</td><td class="num">${money(c.due)}</td><td class="num">${money(c.paid)}<div class="prog"><i style="width:${pct}%;background:${pl.c}"></i></div></td><td class="num ${c.balance>0.005?'owe':''}">${money(c.balance)}</td><td>${tag(pl.c,pl.l)}</td></tr>`};
+  const mm=monthMoney();const revCard=`<div class="kpi" style="border-left:5px solid var(--book)"><span>Revenue · ${esc(mm.month)}</span><b>${money(mm.rev)}</b><span>${mm.nights} night${mm.nights==1?'':'s'} booked</span></div>`;
   if(isPhone())return`${propChips()}
-  <div class="kpis"><div class="kpi" style="border-left:5px solid var(--owe)"><span>Still to collect</span><b class="${out>0?'owe':''}">${money(out)}</b><span>${owing.length} booking${owing.length==1?'':'s'}</span></div>
+  <div class="kpis">${revCard}<div class="kpi" style="border-left:5px solid var(--owe)"><span>Still to collect</span><b class="${out>0?'owe':''}">${money(out)}</b><span>${owing.length} booking${owing.length==1?'':'s'}</span></div>
   <div class="kpi" style="border-left:5px solid var(--paid)"><span>Collected in ${esc(cur.toLocaleDateString('en-US',{month:'long'}))}</span><b>${money(got)}</b></div></div>
   <h3 class="h"><span class="dot" style="background:var(--owe)"></span>Needs payment</h3>
   ${owing.length?`<div class="cards">${owing.map(b=>bCard(b,1)).join('')}</div>`:'<div class="empty">Everyone is paid up.</div>'}
@@ -512,7 +518,7 @@ function payments(){
   ${paidFull.length?`<details><summary>Paid in full (${paidFull.length})</summary><div class="cards">${paidFull.map(b=>bCard(b,1)).join('')}</div></details>`:''}`;
   const head='<thead><tr><th>Guest</th><th>Stay</th><th class="num">To collect</th><th class="num">Paid</th><th class="num">Balance</th><th>Payment</th></tr></thead>';
   return`${propChips()}
-  <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="kpi" style="border-left:5px solid var(--paid)"><span>Collected in ${esc(cur.toLocaleDateString('en-US',{month:'long'}))}</span><b>${money(got)}</b></div>
+  <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${revCard}<div class="kpi" style="border-left:5px solid var(--paid)"><span>Collected in ${esc(cur.toLocaleDateString('en-US',{month:'long'}))}</span><b>${money(got)}</b></div>
   <div class="kpi" style="border-left:5px solid var(--owe)"><span>Still to collect</span><b class="${out>0?'owe':''}">${money(out)}</b><span>${owing.length} booking${owing.length==1?'':'s'}</span></div></div>
   <h3 class="h"><span class="dot" style="background:var(--owe)"></span>Needs payment</h3>
   ${owing.length?`<div class="scroll"><table class="stack">${head}<tbody>${owing.map(row).join('')}</tbody></table></div><p class="note">Tap a booking to record a payment.</p>`:'<div class="empty">Everyone is paid up.</div>'}
