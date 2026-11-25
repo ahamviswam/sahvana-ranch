@@ -309,7 +309,7 @@ function bCard(b,pay){const c=calc(b),k=look(b),pl=payLook(b),blk=b.status==='bl
   <div class="cm">${esc(fmtWD(b.checkIn))} → ${esc(fmtWD(b.checkOut))}${blk?'':` · ${c.n} night${c.n==1?'':'s'}`}</div>
   ${info?`<div class="cm">${esc(info)}</div>`:''}
   ${blk?'':`<div class="money"><span>Total <b>${money(c.due)}</b></span><span>Paid <b>${money(c.paid)}</b></span><span class="${c.balance>0.005?'owe':''}">Due <b>${money(c.balance)}</b></span></div><div class="prog"><i style="width:${pct}%;background:${pl.c}"></i></div>`}
-  ${pay&&b.payReminderSent&&c.balance>0.005?`<div class="cm">Reminder sent ${esc(fmtD(b.payReminderSent.slice(0,10)))}</div>`:''}
+  ${pay&&b.msgLog&&b.msgLog.reminder&&c.balance>0.005?`<div class="cm">Reminder sent ${esc(fmtD(String(b.msgLog.reminder.at).slice(0,10)))} by ${esc(b.msgLog.reminder.via)}</div>`:''}
   ${needsContract(b)?`<div class="tags">${conTag(b)}</div>`:''}</button>`}
 const tag=(c,l)=>`<span class="tag" style="background:${c}">${esc(l)}</span>`;
 
@@ -562,7 +562,7 @@ function drawView(){
   </div>
   ${blk?'':`<div class="sec s-pay"><div class="vbig"><span>Balance due</span><b class="${c.balance>0.005?'owe':''}">${money(c.balance)}</b></div>${balHtml()}
    ${(d.payments||[]).length?`<div style="margin-top:8px">${d.payments.map(p=>`<div class="vr"><span>${esc(fmtD(p.date))} · ${esc(p.method||'')}</span><div>${money(+p.amount||0)}</div></div>`).join('')}</div>`:''}</div>`}
-  ${blk?'':payMsgSection(d)}
+  ${blk?'':guestMsgSection(d)}
   ${!blk&&((d.contractFiles||[]).length||safeUrl(d.contractLink))?`<div class="sec s-con"><h4>Contract</h4>${(d.contractFiles||[]).map(f=>`<div class="file"><span class="dot" style="background:var(--paid)"></span><a href="/files/${encodeURIComponent(f.id)}" target="_blank" rel="noopener">${esc(f.name||'Contract')}</a></div>`).join('')}${safeUrl(d.contractLink)?`<a href="${esc(safeUrl(d.contractLink))}" target="_blank" rel="noopener">Open in SignWell ↗</a>`:''}</div>`:''}
   ${d.notes?`<div class="sec s-note"><h4>Notes</h4><div style="white-space:pre-wrap">${esc(d.notes)}</div></div>`:''}
   <div id="msgOut"></div>
@@ -637,7 +637,7 @@ function drawForm(){
    <div class="chips"><button class="btn small" id="addPay">+ Add payment</button><button class="btn small c" style="background:var(--paid)" id="payRest">Mark balance as paid</button></div>
    <div id="bal">${balHtml()}</div>
    ${+d.deposit?`<label class="tgl" style="margin-top:8px"><input type="checkbox" id="depRef" ${d.depositRefunded?'checked':''}> Security deposit refunded to guest after the stay</label>`:''}</div>
-  ${S.bookings.some(x=>x.id===d.id)?payMsgSection(d):''}
+  ${S.bookings.some(x=>x.id===d.id)?guestMsgSection(d):''}
   <div class="sec s-con" id="conSec"><h4><span class="dot" style="background:#3a6fd8"></span>Contract (SignWell)</h4>
    <div class="chips" style="margin-bottom:12px">${Object.entries(CST).map(([k2,v])=>`<button class="chip st ${(d.contractStatus||'none')===k2?'on':''}" data-cst="${k2}" style="${(d.contractStatus||'none')===k2?'background:'+v.c:''}"><span class="dot" style="background:${v.c}"></span>${v.l}</button>`).join('')}</div>
    <label class="field">SignWell document link<input type="url" id="f_contractLink" value="${esc(d.contractLink||'')}" placeholder="Paste the link from SignWell"></label>
@@ -716,8 +716,28 @@ function msgSection(t){
 function refreshMsg(){const sec=$('#msgSec');if(!sec||!tdraft)return;const ta=$('#msgTxt');const at=ta&&document.activeElement===ta;const pos=ta?ta.selectionStart:0;
   sec.outerHTML=msgSection(tdraft);if(at){const n=$('#msgTxt');n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
 
-/* ---------- guest payment messages ---------- */
-const canPayMsg=b=>b&&b.status!=='blocked'&&b.status!=='cancelled'&&b.source!=='Airbnb';
+/* ---------- guest messages (templates + payments) ---------- */
+const canMsg=b=>b&&b.status!=='blocked'&&b.status!=='cancelled';
+/* generic starters — the owners' real texts (codes, WiFi, rules) live in their private data, never in this code */
+const DEFAULT_TEMPLATES=[
+  {id:'checkin',label:'Check-in',text:'Hi {name}!\n\nWelcome to Sahvana Ranch! We are looking forward to hosting you.\n\nCheck-in: {checkin}\nCheck-out: {checkout}\n\n(Edit this message under Properties → Guest message templates to add your address, access codes, WiFi and house rules.)\n\nPlease let me know if you have any questions.'},
+  {id:'checkout',label:'Check-out',text:'Hi {name}, sending the check-out instructions for {checkout}.\n\n(Edit this message under Properties → Guest message templates.)\n\nThank you!'},
+  {id:'thanks',label:'Thank you',text:'Hi {name},\nThank you for staying with us! It was a pleasure hosting you.\n— Sahvana Ranch'}];
+function templatesFor(b){const P=prop(b.propertyId)||S.properties[0]||{};return Array.isArray(P.templates)&&P.templates.length?P.templates:DEFAULT_TEMPLATES}
+function fillTpl(text,b){const c=calc(b);const v={name:firstName(b.guest),fullname:String(b.guest||'').trim(),checkin:fmtWD(b.checkIn),checkout:fmtWD(b.checkOut),nights:String(c.n),
+  hall:c.hallDays?[...b.hallDays].sort().map(fmtWD).join(' & '):'',balance:money(Math.max(0,c.balance))};
+  return String(text||'').replace(/\{(\w+)\}/g,(m,k)=>v[k]!=null?v[k]:m)}
+function msgKinds(b){const k=templatesFor(b).map(t=>({id:'t:'+t.id,label:t.label||'Message'}));
+  if(b.source!=='Airbnb')k.push({id:'reminder',label:'Payment reminder'},{id:'received',label:'Payment received'});return k}
+function defaultKind(b){const c=calc(b),t=templatesFor(b);const find=re=>{const x=t.find(x=>re.test(x.label||''));return x?'t:'+x.id:null};
+  const first=msgKinds(b)[0].id;
+  if(TODAY>b.checkOut)return find(/thank|wish|wedding/i)||first;
+  if(TODAY>=b.checkIn||addDays(TODAY,1)>=b.checkOut)return find(/check.?out/i)||first;
+  if(nightsBetween(TODAY,b.checkIn)<=3)return find(/check.?in/i)||first;
+  if(c.balance>0.005&&b.source!=='Airbnb')return'reminder';
+  return find(/check.?in/i)||first}
+function msgText(b,kind){if(kind==='reminder'||kind==='received')return payMsg(b,kind);
+  const t=templatesFor(b).find(x=>'t:'+x.id===kind);return t?fillTpl(t.text,b):''}
 function payMsg(b,kind){
   const c=calc(b),P=prop(b.propertyId)||{};const hi=`Hi ${firstName(b.guest)}`;
   const stay=`${fmtWD(b.checkIn)} – ${fmtWD(b.checkOut)}`+(c.hallDays?` (event hall ${[...b.hallDays].sort().map(fmtD).join(' & ')})`:'');
@@ -727,24 +747,25 @@ function payMsg(b,kind){
     return`${hi}, thank you — we received your payment${last?` of ${money(+last.amount||0)} on ${fmtD(last.date)}`:''} for your Sahvana Ranch booking, ${stay}.\nPaid so far: ${money(c.paid)} of ${money(c.due)}.\n${c.balance>0.005?`Remaining balance: ${money(c.balance)}${b.checkIn>=TODAY?`, due before check-in on ${fmtWD(b.checkIn)}`:''}.`:'You are all paid up!'}${c.dep&&c.balance<=0.005?`\nYour ${money(c.dep)} security deposit is refunded after check-out.`:''}\n— Sahvana Ranch`}
   return`${hi}, a friendly reminder about your Sahvana Ranch booking, ${stay}.\nTotal to pay: ${money(c.due)}${c.dep?` (${money(c.total)} booking + ${money(c.dep)} refundable security deposit)`:''}\nPaid so far: ${money(c.paid)}\nBalance due: ${money(Math.max(0,c.balance))}${b.checkIn>=TODAY?` before check-in on ${fmtWD(b.checkIn)}`:''}${info?`\n\n${info}`:''}\n\nThank you! Please reply here with any questions.\n— Sahvana Ranch`;
 }
-function payMsgSection(b){
-  if(!canPayMsg(b))return'';
-  const c=calc(b);const kind=b._bkind||(c.balance>0.005?'reminder':'received');b._bkind=kind;
-  const text=b._btext??payMsg(b,kind);const L=msgLinks(b.phone,text);
-  const sent=[b.payReminderSent?`Reminder sent ${fmtD(b.payReminderSent.slice(0,10))} by ${b.payReminderVia||'text'}`:'',b.payThanksSent?`Thank-you sent ${fmtD(b.payThanksSent.slice(0,10))} by ${b.payThanksVia||'text'}`:''].filter(Boolean).join(' · ');
-  return`<div class="sec s-msg" id="bmsgSec"><h4><span class="dot" style="background:#1f8a83"></span>Message the guest about payment</h4>
-   <div class="chips" style="margin-bottom:10px"><button class="chip ${kind==='reminder'?'on':''}" data-bmk="reminder">Payment reminder</button><button class="chip ${kind==='received'?'on':''}" data-bmk="received">Payment received</button></div>
+function guestMsgSection(b){
+  if(!canMsg(b))return'';
+  const kinds=msgKinds(b);if(!kinds.some(k=>k.id===b._bkind))b._bkind=defaultKind(b);const kind=b._bkind;
+  const text=b._btext??msgText(b,kind);const L=msgLinks(b.phone,text);const log=b.msgLog||{};
+  const sent=kinds.filter(k=>log[k.id]).map(k=>`${k.label} sent ${fmtD(String(log[k.id].at).slice(0,10))} by ${log[k.id].via}`).join(' · ');
+  const hasInfo=String((prop(b.propertyId)||{}).payInfo||'').trim();
+  return`<div class="sec s-msg" id="bmsgSec"><h4><span class="dot" style="background:#1f8a83"></span>Message the guest</h4>
+   <div class="chips" style="margin-bottom:10px">${kinds.map(k=>`<button class="chip ${kind===k.id?'on':''}" data-bmk="${esc(k.id)}">${esc(k.label)}${log[k.id]?' ✓':''}</button>`).join('')}</div>
    <textarea class="msgtxt" id="bmsgTxt" aria-label="Message">${esc(text)}</textarea>
    ${L?`<div class="msgbtns"><a id="bsendSms" data-via="text" href="${esc(L.sms)}" style="background:#1f8a83"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>Text</a><a id="bsendWa" data-via="WhatsApp" href="${esc(L.wa)}" target="_blank" rel="noopener" style="background:#1fa855"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.1.1.7-.1 1.4z"/></svg>WhatsApp</a></div>`
      :`<p class="warn" style="margin:8px 0 0">Add the guest’s phone number (tap Edit) to send this.</p>`}
-   <p class="note" style="margin:8px 0 0">${sent?esc(sent)+' · ':''}${String((prop(b.propertyId)||{}).payInfo||'').trim()?'':'Tip: add your Zelle or payment details under Properties so they appear in reminders. · '}Opens your phone with the message ready — you tap Send.</p></div>`;
+   <p class="note" style="margin:8px 0 0">${sent?esc(sent)+' · ':''}${kind==='reminder'&&!hasInfo?'Tip: add your Zelle or payment details under Properties so they appear in reminders. · ':''}Opens your phone with the message ready — you tap Send. Templates are edited under Properties.</p></div>`;
 }
 function refreshBMsg(){const sec=$('#bmsgSec');if(!sec||!draft)return;const ta=$('#bmsgTxt');const at=ta&&document.activeElement===ta;const pos=ta?ta.selectionStart:0;
-  sec.outerHTML=payMsgSection(draft);if(at){const n=$('#bmsgTxt');n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
+  sec.outerHTML=guestMsgSection(draft);if(at){const n=$('#bmsgTxt');n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
 
 /* ---------- property form ---------- */
 function openProp(id){const p=id?S.properties.find(x=>x.id===id):null;
-  pdraft=p?{...p}:{id:uid(),name:'',address:'',rate:0,cleaning:0,taxPct:0,maxGuests:'',color:PCOLORS[S.properties.length%PCOLORS.length]};draft=null;tdraft=null;delArm=false;drawProp();$('#ov').classList.add('on')}
+  pdraft=p?{...p,templates:JSON.parse(JSON.stringify(Array.isArray(p.templates)&&p.templates.length?p.templates:DEFAULT_TEMPLATES))}:{templates:JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)),id:uid(),name:'',address:'',rate:0,cleaning:0,taxPct:0,maxGuests:'',color:PCOLORS[S.properties.length%PCOLORS.length]};draft=null;tdraft=null;delArm=false;drawProp();$('#ov').classList.add('on')}
 function drawProp(){const p=pdraft,isNew=!S.properties.some(x=>x.id===p.id);
   $('#modal').style.setProperty('--mc',p.color);
   $('#modal').innerHTML=`<h2>${isNew?'Add property':esc(p.name)}</h2>
@@ -757,6 +778,10 @@ function drawProp(){const p=pdraft,isNew=!S.properties.some(x=>x.id===p.id);
   <label class="field">House: max overnight guests<input type="number" id="p_maxGuests" value="${esc(p.maxGuests)}"></label>
   <label class="field">Event hall: max guests<input type="number" id="p_hallMax" value="${esc(p.hallMax||'')}"></label></div>
   <label class="field" style="margin-top:12px">Payment instructions (added to payment reminders)<textarea id="p_payInfo" rows="2" placeholder="e.g. You can pay by Zelle to (972) 555-0100 (Sahvana Ranch)">${esc(p.payInfo||'')}</textarea></label>
+  <div class="sec s-msg"><h4><span class="dot" style="background:#1f8a83"></span>Guest message templates</h4>
+  <p class="note" style="margin:0 0 10px">These appear as buttons on every booking. Write {name}, {checkin}, {checkout} or {hall} and they are filled in for each guest.</p>
+  ${(p.templates||[]).map((t,i)=>`<div style="margin-bottom:12px"><div style="display:flex;gap:8px;margin-bottom:6px"><input class="search" style="min-width:0" data-ti="${i}" data-tk="label" value="${esc(t.label)}" aria-label="Template name"><button class="btn small danger" data-trm="${i}" aria-label="Delete template">✕</button></div><textarea class="msgtxt" rows="8" data-ti="${i}" data-tk="text" aria-label="Template text">${esc(t.text)}</textarea></div>`).join('')}
+  <button class="btn small" id="tplAdd">+ Add template</button></div>
   <div class="sec"><h4>Airbnb calendar sync</h4><label class="field">Airbnb calendar link (ends in .ics)<input type="url" id="p_icalUrl" value="${esc(p.icalUrl||'')}" placeholder="https://www.airbnb.com/calendar/ical/….ics"></label>
   <p class="note" style="margin:6px 0 0">In Airbnb: Calendar → Availability → Connect calendars → Export calendar, then paste the link here. Airbnb dates show in coral on your calendar and refresh every hour. Dates you already have as your own bookings are skipped.</p>
   ${isNew?'':`<button class="btn small" id="icalNow" style="margin-top:10px">Sync now</button>`}</div>
@@ -925,6 +950,7 @@ $('#modal').addEventListener('input',e=>{
   if(draft&&id==='bmsgTxt'){draft._btext=e.target.value;const L=msgLinks(draft.phone,draft._btext);if(L){$('#bsendSms')?.setAttribute('href',L.sms);$('#bsendWa')?.setAttribute('href',L.wa)}}
   if(tdraft&&id==='msgTxt'){tdraft._text=e.target.value;const L=msgLinks(tdraft.phone,tdraft._text);if(L){$('#sendSms')?.setAttribute('href',L.sms);$('#sendWa')?.setAttribute('href',L.wa)}}
   if(pdraft&&id.startsWith('p_'))pdraft[id.slice(2)]=e.target.value;
+  if(pdraft&&e.target.dataset&&e.target.dataset.ti!=null){const t=pdraft.templates[+e.target.dataset.ti];if(t)t[e.target.dataset.tk]=e.target.value}
 });
 $('#modal').addEventListener('change',e=>{
   if(imp&&e.target.id==='impFile'){const f=e.target.files&&e.target.files[0];if(f){const r=new FileReader();r.onload=()=>loadImport(String(r.result||''));r.readAsText(f)}return}
@@ -937,9 +963,10 @@ $('#modal').addEventListener('change',e=>{
 });
 $('#modal').addEventListener('click',e=>{
   const ba=e.target.closest('#bsendSms,#bsendWa');
-  if(ba&&draft){const k=draft._bkind==='received'?'payThanks':'payReminder',stamp=new Date().toISOString(),via=ba.dataset.via;
-    draft[k+'Sent']=stamp;draft[k+'Via']=via;const saved=S.bookings.find(x=>x.id===draft.id);
-    if(saved)save('bookings',{...saved,[k+'Sent']:stamp,[k+'Via']:via}).catch(()=>{});return}
+  if(ba&&draft){const k=draft._bkind,entry={at:new Date().toISOString(),via:ba.dataset.via};
+    draft.msgLog={...(draft.msgLog||{}),[k]:entry};const saved=S.bookings.find(x=>x.id===draft.id);
+    if(saved)save('bookings',{...saved,msgLog:{...(saved.msgLog||{}),[k]:entry}}).catch(()=>{});
+    setTimeout(()=>{if(draft&&$('#bmsgSec')){const keep=draft._btext;refreshBMsg();draft._btext=keep}},300);return}
   const a=e.target.closest('#sendSms,#sendWa');if(!a||!tdraft)return;
   const k=tdraft._kind==='reminder'?'reminder':'confirm',stamp=new Date().toISOString(),via=a.dataset.via;
   const saved=S.tours.find(x=>x.id===tdraft.id);tdraft[k+'Sent']=stamp;tdraft[k+'Via']=via;
@@ -1002,6 +1029,8 @@ $('#modal').addEventListener('click',async e=>{
       return}
   }
   if(pdraft){
+    if(t.id==='tplAdd'){pdraft.templates.push({id:uid(),label:'New message',text:'Hi {name},\n\n'});drawProp();setTimeout(()=>{const a=document.querySelectorAll('#modal [data-tk=label]');a[a.length-1]?.focus()},50);return}
+    if(t.dataset.trm!=null){if(t.dataset.arm!=='1'){t.dataset.arm='1';t.textContent='Delete?';return}pdraft.templates.splice(+t.dataset.trm,1);drawProp();return}
     if(t.dataset.c){pdraft.color=t.dataset.c;for(const c of document.querySelectorAll('#modal [data-c]'))c.classList.toggle('on',c===t);return}
     if(t.id==='pdelB'){const n=S.bookings.filter(b=>b.propertyId===pdraft.id).length+S.tours.filter(x=>x.propertyId===pdraft.id).length;
       if(n){toast(`${n} booking${n==1?' or tour uses':'s/tours use'} this property — move or delete them first`);return}
