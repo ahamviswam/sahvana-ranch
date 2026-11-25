@@ -391,10 +391,10 @@ function kpis(){
   const rel=d=>d===TODAY?'Today':d===addDays(TODAY,1)?'Tomorrow':fmtD(d);
   const card=(col,label,big,small,attr)=>`<div class="kpi" style="border-left:5px solid ${col}"${attr||''}><span>${label}</span><b>${big}</b><span>${small}</span></div>`;
   $('#kpis').innerHTML=
-    card('var(--paid)','Next check-in',nextIn?esc(rel(nextIn.checkIn)):'—',nextIn?esc(nextIn.guest||'Guest'):'Nothing upcoming')+
     card('var(--book)','Next check-out',nextOut?esc(rel(nextOut.checkOut)):'—',nextOut?esc(nextOut.guest||'Guest'):'Nothing upcoming')+
-    card('var(--tour)','Next tour',tours[0]?`<i style="font-style:normal;white-space:nowrap">${esc(rel(tours[0].date))}</i> <i style="font-style:normal;white-space:nowrap">${esc(fmtT(tours[0].time))}</i>`:'—',tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled')+
-    card('var(--hall)','Next event in the hall',hall?esc(rel(hall.d)):'—',hall?esc((hall.b.guest||'Guest')+(hall.b.hallEvent?' · '+hall.b.hallEvent:'')):'No hall bookings');
+    card('var(--paid)','Next check-in',nextIn?esc(rel(nextIn.checkIn)):'—',nextIn?esc(nextIn.guest||'Guest'):'Nothing upcoming')+
+    card('var(--hall)','Next event in the hall',hall?esc(rel(hall.d)):'—',hall?esc((hall.b.guest||'Guest')+(hall.b.hallEvent?' · '+hall.b.hallEvent:'')):'No hall bookings')+
+    card('var(--tour)','Next tour',tours[0]?`<i style="font-style:normal;white-space:nowrap">${esc(rel(tours[0].date))}</i> <i style="font-style:normal;white-space:nowrap">${esc(fmtT(tours[0].time))}</i>`:'—',tours[0]?esc(tours[0].name||'Visitor')+(tours.length>1?` · ${tours.length-1} more`:''):'None scheduled');
 }
 function propChips(){
   if(S.properties.length<2)return'';
