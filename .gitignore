@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.log
+# backups contain guest names, phone numbers and contracts — never commit them
+backups/
+sahvana-backup*.json
