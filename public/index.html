@@ -133,6 +133,12 @@ textarea.out{width:100%;min-height:120px;margin-top:8px}
 h3.h{font-size:19px;margin:24px 0 8px;display:flex;align-items:center;gap:8px}
 details summary{cursor:pointer;font-weight:700;padding:10px 0}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
+/* visitor messages */
+.s-msg{--sc:#1f8a83;--st:light-dark(#e2f3f2,#14312f)}
+.msgbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.msgbtns a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:12px;color:#fff;font-weight:700;text-decoration:none;font-size:16px}
+.msgbtns a svg{width:20px;height:20px;fill:currentColor}
+textarea.msgtxt{width:100%;min-height:118px;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:inherit;resize:vertical}
 /* phone app shell */
 .bnav,.fab{display:none}
 .cards{display:grid;gap:10px}
@@ -162,7 +168,7 @@ details summary{cursor:pointer;font-weight:700;padding:10px 0}
  .bnav button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
  .bnav button.on{color:var(--ink)}.bnav button.on svg{stroke-width:2.4}
  .fab{display:grid;place-items:center;position:fixed;right:16px;bottom:calc(74px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);font-size:32px;line-height:1;box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:16;cursor:pointer}
- .ov{padding:0;align-items:stretch}
+ .ov{padding:0;align-items:flex-start}
  .modal{width:100%;min-height:100%;border-radius:0;padding:max(14px,env(safe-area-inset-top)) 14px 0;box-shadow:none}
  .modal h2{font-size:23px}
  .foot{position:sticky;bottom:0;background:var(--bg);margin:16px -14px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);z-index:3;gap:8px}
@@ -672,10 +678,40 @@ function drawTour(){
    <label class="field">Interested in<input id="t_interest" value="${esc(t.interest)}" placeholder="e.g. Weekend stay, wedding, birthday party" list="intList"></label>
    <label class="field">Their event / stay date<input type="date" id="t_eventDate" value="${esc(t.eventDate)}"></label></div>
    <datalist id="intList"><option value="Weekend stay"><option value="Wedding"><option value="Birthday party"><option value="Baby shower"><option value="Corporate event"><option value="Family reunion"></datalist></div>
+  ${isNew?'':msgSection(t)}
   <div class="sec s-note"><h4><span class="dot" style="background:var(--block)"></span>Notes</h4><label class="field"><textarea id="t_notes" rows="3" aria-label="Notes" placeholder="What they're looking for, budget, follow-up…">${esc(t.notes)}</textarea></label></div>
   <div class="foot"><div>${isNew?'':`<button class="btn danger" id="tdel">${delArm?'Tap again to delete':'Delete'}</button><button class="btn c" style="background:var(--book)" id="tconv">Turn into booking</button>`}</div>
   <div><button class="btn" id="cancel">Close</button><button class="btn c" style="background:var(--tour)" id="tsave">${isNew?'Schedule tour':'Save changes'}</button></div></div>`;
 }
+
+/* ---------- visitor text / WhatsApp ---------- */
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function phoneDigits(ph){let d=String(ph||'').replace(/\D/g,'');if(d.length===10)d='1'+d;return d.length>=11&&d.length<=15?d:''}
+function firstName(n){return String(n||'').trim().split(/[\s\-\/,]+/)[0]||'there'}
+function tourMsg(t,kind){
+  const P=prop(t.propertyId)||S.properties[0]||{};const addr=P.address?`\nAddress: ${P.address}`:'';
+  const when=`${fmtWD(t.date)} at ${fmtT(t.time)}`;const days=nightsBetween(TODAY,t.date);
+  const rel=t.date===TODAY?'today':days===1?'tomorrow':'on '+fmtWD(t.date);
+  return kind==='reminder'
+    ?`Hi ${firstName(t.name)}, a friendly reminder of your Sahvana Ranch tour ${rel} at ${fmtT(t.time)}.${addr}\nPlease reply here if anything changes. See you then!\n— Sahvana Ranch`
+    :`Hi ${firstName(t.name)}, your tour of Sahvana Ranch is confirmed for ${when}.${addr}\nPlease reply here if anything changes. See you soon!\n— Sahvana Ranch`;
+}
+function msgLinks(phone,text){const d=phoneDigits(phone);if(!d)return null;
+  return{sms:`sms:+${d}${isIOS?'&':'?'}body=${encodeURIComponent(text)}`,wa:`https://wa.me/${d}?text=${encodeURIComponent(text)}`}}
+function msgSection(t){
+  if(t.status==='cancelled')return'';
+  const kind=t._kind||(nightsBetween(TODAY,t.date)<=1&&t.date>=TODAY&&t.confirmSent?'reminder':'confirmation');t._kind=kind;
+  const text=t._text??tourMsg(t,kind);const L=msgLinks(t.phone,text);
+  const sent=[t.confirmSent?`Confirmation sent ${fmtD(t.confirmSent.slice(0,10))} by ${t.confirmVia||'text'}`:'',t.reminderSent?`Reminder sent ${fmtD(t.reminderSent.slice(0,10))} by ${t.reminderVia||'text'}`:''].filter(Boolean).join(' · ');
+  return`<div class="sec s-msg" id="msgSec"><h4><span class="dot" style="background:#1f8a83"></span>Message the visitor</h4>
+   <div class="chips" style="margin-bottom:10px"><button class="chip ${kind==='confirmation'?'on':''}" data-mk="confirmation">Confirmation</button><button class="chip ${kind==='reminder'?'on':''}" data-mk="reminder">Reminder</button></div>
+   <textarea class="msgtxt" id="msgTxt" aria-label="Message">${esc(text)}</textarea>
+   ${L?`<div class="msgbtns"><a id="sendSms" data-via="text" href="${esc(L.sms)}" style="background:#1f8a83"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>Text</a><a id="sendWa" data-via="WhatsApp" href="${esc(L.wa)}" target="_blank" rel="noopener" style="background:#1fa855"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.1.1.7-.1 1.4z"/></svg>WhatsApp</a></div>`
+     :`<p class="warn" style="margin:8px 0 0">Add the visitor’s phone number above (with area code) to send this.</p>`}
+   <p class="note" style="margin:8px 0 0">${sent?esc(sent)+' · ':''}Opens your phone with the message ready — you tap Send.</p></div>`;
+}
+function refreshMsg(){const sec=$('#msgSec');if(!sec||!tdraft)return;const ta=$('#msgTxt');const at=ta&&document.activeElement===ta;const pos=ta?ta.selectionStart:0;
+  sec.outerHTML=msgSection(tdraft);if(at){const n=$('#msgTxt');n.focus();try{n.setSelectionRange(pos,pos)}catch(e){}}}
 
 /* ---------- property form ---------- */
 function openProp(id){const p=id?S.properties.find(x=>x.id===id):null;
@@ -855,7 +891,8 @@ $('#modal').addEventListener('input',e=>{
     const row=e.target.closest('.pay');if(row&&e.target.dataset.k){draft.payments[+row.dataset.i][e.target.dataset.k]=e.target.value;refresh()}
   }
   if(imp&&id==='impText'){clearTimeout(imp.t);const v=e.target.value;imp.t=setTimeout(()=>{if(v.trim()){loadImport(v);const ta=$('#impText');if(ta)ta.value=v}},500)}
-  if(tdraft&&id.startsWith('t_'))tdraft[id.slice(2)]=e.target.value;
+  if(tdraft&&id.startsWith('t_')){tdraft[id.slice(2)]=e.target.value;if(['t_name','t_date','t_time','t_phone'].includes(id)){delete tdraft._text;clearTimeout(tdraft._tm);tdraft._tm=setTimeout(refreshMsg,400)}}
+  if(tdraft&&id==='msgTxt'){tdraft._text=e.target.value;const L=msgLinks(tdraft.phone,tdraft._text);if(L){$('#sendSms')?.setAttribute('href',L.sms);$('#sendWa')?.setAttribute('href',L.wa)}}
   if(pdraft&&id.startsWith('p_'))pdraft[id.slice(2)]=e.target.value;
 });
 $('#modal').addEventListener('change',e=>{
@@ -866,6 +903,12 @@ $('#modal').addEventListener('change',e=>{
     assets.upload(f).then(r=>{if(!draft)return;draft.contractFiles=draft.contractFiles||[];draft.contractFiles.push({id:r.id,name:f.name,date:TODAY});if(draft.contractStatus!=='signed'){draft.contractStatus='signed'}drawForm();$('#conSec')?.scrollIntoView({block:'nearest'});toast('Attached — tap Save to keep it')}).catch(()=>{if(msg)msg.textContent='Upload failed — try again (PDF under 20 MB)'});return}
   if(draft&&e.target.id==='hallOn'){draft.hallOn=e.target.checked;if(draft.hallOn&&!(draft.hallDays||[]).length)draft.hallDays=[draft.checkIn];drawForm();$('#hallSec')?.scrollIntoView({block:'nearest'});return}
   if(draft&&e.target.id==='f_propertyId'){const p=prop(draft.propertyId);if(p&&!S.bookings.some(b=>b.id===draft.id)){draft.rate=p.rate||0;draft.cleaning=p.cleaning||0;draft.deposit=p.deposit!=null&&p.deposit!==''?+p.deposit:500;draft.hallRate=p.hallRate||0;drawForm()}else refresh()}
+});
+$('#modal').addEventListener('click',e=>{
+  const a=e.target.closest('#sendSms,#sendWa');if(!a||!tdraft)return;
+  const k=tdraft._kind==='reminder'?'reminder':'confirm',stamp=new Date().toISOString(),via=a.dataset.via;
+  const saved=S.tours.find(x=>x.id===tdraft.id);tdraft[k+'Sent']=stamp;tdraft[k+'Via']=via;
+  if(saved)save('tours',{...saved,[k+'Sent']:stamp,[k+'Via']:via}).catch(()=>{});
 });
 $('#modal').addEventListener('click',async e=>{
   const t=e.target.closest('button');if(!t)return;
@@ -907,6 +950,7 @@ $('#modal').addEventListener('click',async e=>{
   }
   if(tdraft){
     if(t.dataset.tst){tdraft.status=t.dataset.tst;drawTour();return}
+    if(t.dataset.mk){tdraft._kind=t.dataset.mk;delete tdraft._text;refreshMsg();return}
     if(t.id==='tdel'){if(!delArm){delArm=true;t.textContent='Tap again to delete';return}const id=tdraft.id;closeModal();await remove('tours',id);toast('Tour deleted');return}
     if(t.id==='tconv'){const tr={...tdraft};openBooking(null,tr.eventDate||tr.date,'confirmed',tr);return}
     if(t.id==='tsave'){
@@ -915,7 +959,9 @@ $('#modal').addEventListener('click',async e=>{
       if(!String(tdraft.name).trim()){toast('Add the visitor’s name');$('#t_name').focus();return}
       const tr={...tdraft,name:String(tdraft.name).trim(),people:+tdraft.people||0};const isNew=!S.tours.some(x=>x.id===tr.id);
       closeModal();const d=parse(tr.date);cur=new Date(d.getFullYear(),d.getMonth(),1);
-      try{await save('tours',tr);toast(isNew?'Tour scheduled':'Tour saved')}catch(err){}
+      const clean={...tr};delete clean._kind;delete clean._text;delete clean._tm;
+      try{await save('tours',clean);toast(isNew?'Tour scheduled — send the confirmation':'Tour saved');
+        if(isNew&&phoneDigits(clean.phone)){openTour(clean.id);setTimeout(()=>$('#msgSec')?.scrollIntoView({block:'start'}),60)}}catch(err){}
       return}
   }
   if(pdraft){
