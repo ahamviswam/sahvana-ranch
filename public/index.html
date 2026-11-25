@@ -731,6 +731,7 @@ function msgKinds(b){const k=templatesFor(b).map(t=>({id:'t:'+t.id,label:t.label
   if(b.source!=='Airbnb')k.push({id:'reminder',label:'Payment reminder'},{id:'received',label:'Payment received'});return k}
 function defaultKind(b){const c=calc(b),t=templatesFor(b);const find=re=>{const x=t.find(x=>re.test(x.label||''));return x?'t:'+x.id:null};
   const first=msgKinds(b)[0].id;
+  if(b.status==='inquiry')return find(/detail|deposit|booking/i)||first;
   if(TODAY>b.checkOut)return find(/thank|wish|wedding/i)||first;
   if(TODAY>=b.checkIn||addDays(TODAY,1)>=b.checkOut)return find(/check.?out/i)||first;
   if(nightsBetween(TODAY,b.checkIn)<=3)return find(/check.?in/i)||first;
